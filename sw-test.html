@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Service Worker 域名替换测试</title>
+  <style>
+    body { font-family: sans-serif; max-width: 640px; margin: 20px auto; padding: 0 12px; }
+    .box { padding: 10px 14px; border-radius: 6px; margin: 8px 0; word-break: break-all; }
+    .ok   { background: #e8f5e9; color: #1b5e20; }
+    .err  { background: #ffebee; color: #b71c1c; }
+    .wait { background: #fff8e1; color: #795548; }
+    img#pic { max-width: 100%; border: 1px dashed #999; min-height: 60px; }
+    pre { background: #f5f5f5; padding: 8px; font-size: 12px; white-space: pre-wrap; word-break: break-all; }
+    button { padding: 8px 16px; }
+    code { background: #f0f0f0; padding: 1px 4px; }
+  </style>
+</head>
+<body>
+  <h2>Service Worker 域名替换测试</h2>
+  <p>拦截规则（见同目录 <code>sw.js</code>）：<br>
+     <code>https://test.bing.com</code> → <code>https://gips0.baidu.com</code></p>
+
+  <div id="swStatus" class="box wait">SW 状态检测中...</div>
+  <div id="imgStatus" class="box wait">图片：等待加载...</div>
+
+  <p>下方图片 src 写的是 test.bing.com，若 SW 生效，实际请求会发往 gips0.baidu.com
+     （可在 Network 面板验证）：</p>
+  <img id="pic" alt="测试图"
+       referrerpolicy="no-referrer"
+       src="https://test.bing.com/it/u=1690853528,2506870245&fm=3028&app=3028&f=JPEG&fmt=auto?w=1024&h=1024">
+  <p><button onclick="reloadImg()">重新加载图片</button></p>
+
+  <h3>当前终端 UA</h3>
+  <pre id="ua"></pre>
+
+  <h3>使用说明</h3>
+  <ol>
+    <li>本页面必须通过 <b>http://localhost</b> 或 <b>https://</b> 访问（双击 file:// 打开无效，SW 注册不了）</li>
+    <li>首次打开若显示"等待生效"，刷新一次页面即可</li>
+    <li>三绿 = SW 可用且替换成功；适合发到 PC / 安卓 / iOS / 微心内打开对比测试</li>
+    <li>测试完毕删掉整个 sw-test 文件夹即可，不影响任何项目代码</li>
+  </ol>
+
+  <script>
+    var $ = function (id) { return document.getElementById(id) }
+    $('ua').textContent = navigator.userAgent
+
+    // ---- SW 能力检测与注册 ----
+    if (!('serviceWorker' in navigator)) {
+      $('swStatus').className = 'box err'
+      $('swStatus').textContent = '❌ SW 状态：当前浏览器不支持 Service Worker'
+    } else if (!window.isSecureContext) {
+      $('swStatus').className = 'box err'
+      $('swStatus').textContent = '❌ SW 状态：非安全上下文(需 https 或 localhost)，无法注册'
+    } else {
+      navigator.serviceWorker.register('./sw.js').then(function () {
+        updateSwStatus()
+        navigator.serviceWorker.addEventListener('controllerchange', updateSwStatus)
+      }).catch(function (err) {
+        $('swStatus').className = 'box err'
+        $('swStatus').textContent = '❌ SW 状态：注册失败 - ' + err.message
+      })
+    }
+    function updateSwStatus() {
+      if (navigator.serviceWorker.controller) {
+        $('swStatus').className = 'box ok'
+        $('swStatus').textContent = '✅ SW 状态：已生效，本页请求正被拦截替换'
+      } else {
+        $('swStatus').className = 'box wait'
+        $('swStatus').textContent = '⏳ SW 状态：注册成功，刷新一次页面后生效'
+      }
+    }
+
+    // ---- 图片加载结果 ----
+    var pic = $('pic')
+    pic.onload = function () {
+      $('imgStatus').className = 'box ok'
+      $('imgStatus').textContent = '✅ 图片：加载成功'
+    }
+    pic.onerror = function () {
+      $('imgStatus').className = 'box err'
+      $('imgStatus').textContent = '❌ 图片：加载失败（SW 已拦截则说明 gips0.baidu.com 不通；SW 未生效则说明 test.bing.com 不通）'
+    }
+    function reloadImg() {
+      var s = pic.src
+      pic.src = ''
+      pic.src = s
+    }
+  </script>
+</body>
+</html>
